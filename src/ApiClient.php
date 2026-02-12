@@ -6,13 +6,18 @@ namespace Kemo\Beatport;
 
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-class ApiClient
+final class ApiClient extends AbstractApiClient
 {
-    private const API_BASE_URL = 'https://api.beatport.com/v4';
-
     public function __construct(
-        private readonly HttpClientInterface $httpClient,
+        HttpClientInterface $httpClient,
+        private readonly string $accessToken,
     ) {
+        parent::__construct($httpClient);
+    }
+
+    protected function getBaseUrl(): string
+    {
+        return Beatport::API_BASE_URL;
     }
 
     /**
@@ -20,13 +25,13 @@ class ApiClient
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getMyBeatportTracks(string $accessToken, int $perPage = 100): array
+    public function getMyBeatportTracks(int $perPage = 100): array
     {
         $tracks = [];
         $page = 1;
 
         do {
-            $response = $this->request($accessToken, 'GET', '/my/beatport/tracks/', [
+            $response = $this->authenticatedRequest('GET', '/my/beatport/tracks/', [
                 'page' => $page,
                 'per_page' => $perPage,
             ]);
@@ -47,9 +52,9 @@ class ApiClient
      *
      * @return array<string, mixed>
      */
-    public function getTrack(string $accessToken, int $trackId): array
+    public function getTrack(int $trackId): array
     {
-        return $this->request($accessToken, 'GET', '/catalog/tracks/' . $trackId . '/');
+        return $this->authenticatedRequest('GET', '/catalog/tracks/' . $trackId . '/');
     }
 
     /**
@@ -57,9 +62,9 @@ class ApiClient
      *
      * @return array<string, mixed>
      */
-    public function getAccount(string $accessToken): array
+    public function getAccount(): array
     {
-        return $this->request($accessToken, 'GET', '/my/account/');
+        return $this->authenticatedRequest('GET', '/my/account/');
     }
 
     /**
@@ -67,9 +72,9 @@ class ApiClient
      *
      * @return array<string, mixed>
      */
-    public function searchTracks(string $accessToken, string $query, int $page = 1, int $perPage = 25): array
+    public function searchTracks(string $query, int $page = 1, int $perPage = 25): array
     {
-        return $this->request($accessToken, 'GET', '/catalog/search/', [
+        return $this->authenticatedRequest('GET', '/catalog/search/', [
             'q' => $query,
             'type' => 'tracks',
             'page' => $page,
@@ -82,9 +87,9 @@ class ApiClient
      *
      * @return array<string, mixed>
      */
-    public function getTopTracks(string $accessToken, int $page = 1, int $perPage = 25): array
+    public function getTopTracks(int $page = 1, int $perPage = 25): array
     {
-        return $this->request($accessToken, 'GET', '/catalog/tracks/', [
+        return $this->authenticatedRequest('GET', '/catalog/tracks/', [
             'page' => $page,
             'per_page' => $perPage,
             'order_by' => '-publish_date',
@@ -96,25 +101,10 @@ class ApiClient
      *
      * @return array<string, mixed>
      */
-    private function request(
-        string $accessToken,
-        string $method,
-        string $endpoint,
-        array $query = [],
-    ): array {
-        $options = [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $accessToken,
-                'Accept' => 'application/json',
-            ],
-        ];
-
-        if (!empty($query)) {
-            $options['query'] = $query;
-        }
-
-        $response = $this->httpClient->request($method, self::API_BASE_URL . $endpoint, $options);
-
-        return $response->toArray();
+    private function authenticatedRequest(string $method, string $endpoint, array $query = []): array
+    {
+        return $this->request($method, $endpoint, $query, [
+            'Authorization' => 'Bearer ' . $this->accessToken,
+        ]);
     }
 }

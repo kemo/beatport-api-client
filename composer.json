@@ -1,5 +1,5 @@
 {
-    "name": "kemo/beatport-php-api",
+    "name": "kemo/beatport-api-client",
     "description": "Standalone Beatport API client for PHP",
     "type": "library",
     "license": "proprietary",

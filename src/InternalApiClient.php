@@ -4,15 +4,11 @@ declare(strict_types=1);
 
 namespace Kemo\Beatport;
 
-use Symfony\Contracts\HttpClient\HttpClientInterface;
-
-class InternalApiClient
+final class InternalApiClient extends AbstractApiClient
 {
-    private const BASE_URL = 'https://api-internal.beatportprod.com/v4';
-
-    public function __construct(
-        private readonly HttpClientInterface $httpClient,
-    ) {
+    protected function getBaseUrl(): string
+    {
+        return Beatport::INTERNAL_API_BASE_URL;
     }
 
     /**
@@ -20,7 +16,7 @@ class InternalApiClient
      */
     public function getTrack(int $trackId): array
     {
-        return $this->request('/catalog/tracks/' . $trackId . '/');
+        return $this->request('GET', '/catalog/tracks/' . $trackId . '/');
     }
 
     /**
@@ -28,7 +24,7 @@ class InternalApiClient
      */
     public function getArtist(int $artistId): array
     {
-        return $this->request('/catalog/artists/' . $artistId . '/');
+        return $this->request('GET', '/catalog/artists/' . $artistId . '/');
     }
 
     /**
@@ -36,7 +32,7 @@ class InternalApiClient
      */
     public function getArtistTopTracks(int $artistId, int $perPage = 10): array
     {
-        return $this->request('/catalog/artists/' . $artistId . '/top-10-tracks/', [
+        return $this->request('GET', '/catalog/artists/' . $artistId . '/top-10-tracks/', [
             'per_page' => $perPage,
         ]);
     }
@@ -46,7 +42,7 @@ class InternalApiClient
      */
     public function getLabel(int $labelId): array
     {
-        return $this->request('/catalog/labels/' . $labelId . '/');
+        return $this->request('GET', '/catalog/labels/' . $labelId . '/');
     }
 
     /**
@@ -54,7 +50,7 @@ class InternalApiClient
      */
     public function getLabelTopTracks(int $labelId, int $perPage = 10): array
     {
-        return $this->request('/catalog/labels/' . $labelId . '/top-10-tracks/', [
+        return $this->request('GET', '/catalog/labels/' . $labelId . '/top-10-tracks/', [
             'per_page' => $perPage,
         ]);
     }
@@ -64,7 +60,7 @@ class InternalApiClient
      */
     public function getRelease(int $releaseId): array
     {
-        return $this->request('/catalog/releases/' . $releaseId . '/');
+        return $this->request('GET', '/catalog/releases/' . $releaseId . '/');
     }
 
     /**
@@ -72,7 +68,7 @@ class InternalApiClient
      */
     public function getGenres(): array
     {
-        return $this->request('/catalog/genres/');
+        return $this->request('GET', '/catalog/genres/');
     }
 
     /**
@@ -80,7 +76,7 @@ class InternalApiClient
      */
     public function getGenre(int $genreId): array
     {
-        return $this->request('/catalog/genres/' . $genreId . '/');
+        return $this->request('GET', '/catalog/genres/' . $genreId . '/');
     }
 
     /**
@@ -88,7 +84,7 @@ class InternalApiClient
      */
     public function getGenreTopTracks(int $genreId, int $perPage = 10): array
     {
-        return $this->request('/catalog/genres/' . $genreId . '/top-10-tracks/', [
+        return $this->request('GET', '/catalog/genres/' . $genreId . '/top-10-tracks/', [
             'per_page' => $perPage,
         ]);
     }
@@ -98,7 +94,7 @@ class InternalApiClient
      */
     public function search(string $query, string $type = 'tracks', int $page = 1, int $perPage = 25): array
     {
-        return $this->request('/catalog/search/', [
+        return $this->request('GET', '/catalog/search/', [
             'q' => $query,
             'type' => $type,
             'page' => $page,
@@ -111,7 +107,7 @@ class InternalApiClient
      */
     public function getTracks(int $page = 1, int $perPage = 25, string $orderBy = '-publish_date'): array
     {
-        return $this->request('/catalog/tracks/', [
+        return $this->request('GET', '/catalog/tracks/', [
             'page' => $page,
             'per_page' => $perPage,
             'order_by' => $orderBy,
@@ -123,7 +119,7 @@ class InternalApiClient
      */
     public function getTopTracks(int $genreId, int $page = 1, int $perPage = 100): array
     {
-        return $this->request('/catalog/tracks/top/' . $genreId . '/', [
+        return $this->request('GET', '/catalog/tracks/top/' . $genreId . '/', [
             'page' => $page,
             'per_page' => $perPage,
         ]);
@@ -134,7 +130,7 @@ class InternalApiClient
      */
     public function getChart(int $chartId): array
     {
-        return $this->request('/catalog/charts/' . $chartId . '/');
+        return $this->request('GET', '/catalog/charts/' . $chartId . '/');
     }
 
     /**
@@ -142,31 +138,9 @@ class InternalApiClient
      */
     public function getCharts(int $page = 1, int $perPage = 25): array
     {
-        return $this->request('/catalog/charts/', [
+        return $this->request('GET', '/catalog/charts/', [
             'page' => $page,
             'per_page' => $perPage,
         ]);
-    }
-
-    /**
-     * @param array<string, mixed> $query
-     *
-     * @return array<string, mixed>
-     */
-    private function request(string $endpoint, array $query = []): array
-    {
-        $options = [
-            'headers' => [
-                'Accept' => 'application/json',
-            ],
-        ];
-
-        if (!empty($query)) {
-            $options['query'] = $query;
-        }
-
-        $response = $this->httpClient->request('GET', self::BASE_URL . $endpoint, $options);
-
-        return $response->toArray();
     }
 }

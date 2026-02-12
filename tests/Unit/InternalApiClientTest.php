@@ -23,14 +23,6 @@ final class InternalApiClientTest extends TestCase
         $this->client = new InternalApiClient($this->httpClient);
     }
 
-    private function createJsonResponse(array $data): ResponseInterface&MockObject
-    {
-        $response = $this->createMock(ResponseInterface::class);
-        $response->method('toArray')->willReturn($data);
-
-        return $response;
-    }
-
     private function expectRequest(string $url, ?callable $optionsCheck = null): void
     {
         $args = ['GET', $url];
@@ -41,10 +33,13 @@ final class InternalApiClientTest extends TestCase
             $args[] = $this->anything();
         }
 
+        $response = $this->createStub(ResponseInterface::class);
+        $response->method('toArray')->willReturn(['id' => 1]);
+
         $this->httpClient->expects($this->once())
             ->method('request')
             ->with(...$args)
-            ->willReturn($this->createJsonResponse(['id' => 1]));
+            ->willReturn($response);
     }
 
     public function testGetTrack(): void
@@ -152,6 +147,9 @@ final class InternalApiClientTest extends TestCase
 
     public function testDoesNotSendAuthorizationHeader(): void
     {
+        $response = $this->createStub(ResponseInterface::class);
+        $response->method('toArray')->willReturn([]);
+
         $this->httpClient->expects($this->once())
             ->method('request')
             ->with(
@@ -159,7 +157,7 @@ final class InternalApiClientTest extends TestCase
                 $this->anything(),
                 $this->callback(fn (array $opts) => !isset($opts['headers']['Authorization'])),
             )
-            ->willReturn($this->createJsonResponse([]));
+            ->willReturn($response);
 
         $this->client->getGenres();
     }

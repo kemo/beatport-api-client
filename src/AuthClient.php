@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Kemo\Beatport;
 
-use RuntimeException;
+use Kemo\Beatport\Exception\AuthenticationException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class AuthClient
 {
-    private const AUTH_URL = 'https://api.beatport.com/v4/auth/o/authorize';
-    private const TOKEN_URL = 'https://api.beatport.com/v4/auth/o/token/';
-    private const DOCS_URL = 'https://api.beatport.com/v4/docs/';
+    private const AUTH_URL = Beatport::API_BASE_URL . '/auth/o/authorize';
+    private const TOKEN_URL = Beatport::API_BASE_URL . '/auth/o/token/';
+    private const DOCS_URL = Beatport::API_BASE_URL . '/docs/';
     private const SCOPES = ['library'];
-    private const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -54,7 +53,7 @@ class AuthClient
         $data = $response->toArray();
 
         if (!isset($data['access_token'], $data['refresh_token'])) {
-            throw new RuntimeException('Invalid token response from Beatport');
+            throw new AuthenticationException('Invalid token response from Beatport');
         }
 
         return [
@@ -82,7 +81,7 @@ class AuthClient
         $data = $response->toArray();
 
         if (!isset($data['access_token'])) {
-            throw new RuntimeException('Failed to refresh Beatport token');
+            throw new AuthenticationException('Failed to refresh Beatport token');
         }
 
         $result = [
@@ -104,29 +103,26 @@ class AuthClient
     {
         $response = $this->httpClient->request('GET', self::DOCS_URL, [
             'headers' => [
-                'User-Agent' => self::USER_AGENT,
+                'User-Agent' => Beatport::USER_AGENT,
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             ],
         ]);
 
         $html = $response->getContent();
 
-        // Find JS file URLs (pattern: /static/btprt/*.js)
         preg_match_all('/src="(\/static\/btprt\/[^"]+\.js)"/', $html, $matches);
         $jsUrls = $matches[1] ?? [];
 
-        // Check each JS file for API_CLIENT_ID
         foreach ($jsUrls as $jsPath) {
             $jsUrl = 'https://api.beatport.com' . $jsPath;
             $jsResponse = $this->httpClient->request('GET', $jsUrl, [
                 'headers' => [
-                    'User-Agent' => self::USER_AGENT,
+                    'User-Agent' => Beatport::USER_AGENT,
                 ],
             ]);
 
             $jsContent = $jsResponse->getContent();
 
-            // Pattern: API_CLIENT_ID: 'xxx'
             if (preg_match("/API_CLIENT_ID:\s*['\"]([^'\"]+)['\"]/", $jsContent, $clientMatch)) {
                 return $clientMatch[1];
             }

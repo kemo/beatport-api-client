@@ -5,26 +5,18 @@ declare(strict_types=1);
 namespace Kemo\Beatport\Tests\Unit;
 
 use Kemo\Beatport\AuthClient;
-use PHPUnit\Framework\MockObject\MockObject;
+use Kemo\Beatport\Exception\AuthenticationException;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
 final class AuthClientTest extends TestCase
 {
-    private HttpClientInterface&MockObject $httpClient;
-    private AuthClient $authClient;
-
-    protected function setUp(): void
-    {
-        $this->httpClient = $this->createMock(HttpClientInterface::class);
-        $this->authClient = new AuthClient($this->httpClient);
-    }
-
     public function testGetAuthorizationUrlContainsRequiredParams(): void
     {
-        $url = $this->authClient->getAuthorizationUrl('test_client_id', 'https://example.com/callback', 'test_challenge');
+        $authClient = new AuthClient($this->createStub(HttpClientInterface::class));
+
+        $url = $authClient->getAuthorizationUrl('test_client_id', 'https://example.com/callback', 'test_challenge');
 
         $this->assertStringContainsString('client_id=test_client_id', $url);
         $this->assertStringContainsString('response_type=code', $url);
@@ -35,18 +27,19 @@ final class AuthClientTest extends TestCase
 
     public function testExchangeCodeForTokensSuccess(): void
     {
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('toArray')->willReturn([
             'access_token' => 'bp_access_token',
             'refresh_token' => 'bp_refresh_token',
             'expires_in' => 3600,
         ]);
 
-        $this->httpClient->expects($this->once())
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $result = $this->authClient->exchangeCodeForTokens('client_id', 'https://example.com/callback', 'auth_code', 'code_verifier');
+        $result = (new AuthClient($httpClient))->exchangeCodeForTokens('client_id', 'https://example.com/callback', 'auth_code', 'code_verifier');
 
         $this->assertSame('bp_access_token', $result['access_token']);
         $this->assertSame('bp_refresh_token', $result['refresh_token']);
@@ -55,33 +48,35 @@ final class AuthClientTest extends TestCase
 
     public function testExchangeCodeThrowsOnInvalidResponse(): void
     {
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('toArray')->willReturn(['error' => 'invalid_grant']);
 
-        $this->httpClient->expects($this->once())
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(AuthenticationException::class);
         $this->expectExceptionMessage('Invalid token response from Beatport');
 
-        $this->authClient->exchangeCodeForTokens('client_id', 'https://example.com/callback', 'bad_code', 'verifier');
+        (new AuthClient($httpClient))->exchangeCodeForTokens('client_id', 'https://example.com/callback', 'bad_code', 'verifier');
     }
 
     public function testRefreshAccessTokenSuccess(): void
     {
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('toArray')->willReturn([
             'access_token' => 'new_token',
             'expires_in' => 3600,
             'refresh_token' => 'new_refresh',
         ]);
 
-        $this->httpClient->expects($this->once())
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $result = $this->authClient->refreshAccessToken('client_id', 'old_refresh');
+        $result = (new AuthClient($httpClient))->refreshAccessToken('client_id', 'old_refresh');
 
         $this->assertSame('new_token', $result['access_token']);
         $this->assertSame('new_refresh', $result['refresh_token']);
@@ -89,17 +84,18 @@ final class AuthClientTest extends TestCase
 
     public function testRefreshAccessTokenWithoutNewRefreshToken(): void
     {
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('toArray')->willReturn([
             'access_token' => 'new_token',
             'expires_in' => 3600,
         ]);
 
-        $this->httpClient->expects($this->once())
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $result = $this->authClient->refreshAccessToken('client_id', 'old_refresh');
+        $result = (new AuthClient($httpClient))->refreshAccessToken('client_id', 'old_refresh');
 
         $this->assertSame('new_token', $result['access_token']);
         $this->assertArrayNotHasKey('refresh_token', $result);
@@ -107,49 +103,50 @@ final class AuthClientTest extends TestCase
 
     public function testRefreshAccessTokenThrowsOnFailure(): void
     {
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('toArray')->willReturn(['error' => 'invalid']);
 
-        $this->httpClient->expects($this->once())
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(AuthenticationException::class);
         $this->expectExceptionMessage('Failed to refresh Beatport token');
 
-        $this->authClient->refreshAccessToken('client_id', 'bad_refresh');
+        (new AuthClient($httpClient))->refreshAccessToken('client_id', 'bad_refresh');
     }
 
     public function testScrapeClientIdFindsId(): void
     {
-        $docsResponse = $this->createMock(ResponseInterface::class);
+        $docsResponse = $this->createStub(ResponseInterface::class);
         $docsResponse->method('getContent')->willReturn(
             '<html><script src="/static/btprt/app.123.js"></script></html>',
         );
 
-        $jsResponse = $this->createMock(ResponseInterface::class);
+        $jsResponse = $this->createStub(ResponseInterface::class);
         $jsResponse->method('getContent')->willReturn(
             "const config = { API_CLIENT_ID: 'scraped_client_id_123' };",
         );
 
-        $this->httpClient->expects($this->exactly(2))
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->exactly(2))
             ->method('request')
             ->willReturnOnConsecutiveCalls($docsResponse, $jsResponse);
 
-        $clientId = $this->authClient->scrapeClientId();
-
-        $this->assertSame('scraped_client_id_123', $clientId);
+        $this->assertSame('scraped_client_id_123', (new AuthClient($httpClient))->scrapeClientId());
     }
 
     public function testScrapeClientIdReturnsNullWhenNotFound(): void
     {
-        $docsResponse = $this->createMock(ResponseInterface::class);
+        $docsResponse = $this->createStub(ResponseInterface::class);
         $docsResponse->method('getContent')->willReturn('<html>No JS files</html>');
 
-        $this->httpClient->expects($this->once())
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($docsResponse);
 
-        $this->assertNull($this->authClient->scrapeClientId());
+        $this->assertNull((new AuthClient($httpClient))->scrapeClientId());
     }
 }

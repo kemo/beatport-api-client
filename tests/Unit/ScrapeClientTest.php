@@ -13,18 +13,21 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 
 final class ScrapeClientTest extends TestCase
 {
-    private HttpClientInterface&MockObject $httpClient;
-    private ScrapeClient $client;
-
-    protected function setUp(): void
+    private function createClientWithMock(): array
     {
-        $this->httpClient = $this->createMock(HttpClientInterface::class);
-        $this->client = new ScrapeClient($this->httpClient);
+        $httpClient = $this->createMock(HttpClientInterface::class);
+
+        return [$httpClient, new ScrapeClient($httpClient, 0)];
     }
 
-    private function createResponse(int $status, string $content = '', array $headers = []): ResponseInterface&MockObject
+    private function createClientWithStub(): ScrapeClient
     {
-        $response = $this->createMock(ResponseInterface::class);
+        return new ScrapeClient($this->createStub(HttpClientInterface::class), 0);
+    }
+
+    private function createResponse(int $status, string $content = '', array $headers = []): ResponseInterface
+    {
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('getStatusCode')->willReturn($status);
         $response->method('getContent')->willReturn($content);
         if (!empty($headers)) {
@@ -36,89 +39,97 @@ final class ScrapeClientTest extends TestCase
 
     public function testIsAuthenticatedReturnsFalseByDefault(): void
     {
-        $this->assertFalse($this->client->isAuthenticated());
-        $this->assertNull($this->client->getSession());
+        $client = $this->createClientWithStub();
+        $this->assertFalse($client->isAuthenticated());
+        $this->assertNull($client->getSession());
     }
 
     public function testSetSessionMakesAuthenticated(): void
     {
-        $this->client->setSession('session_cookies_here');
-        $this->assertTrue($this->client->isAuthenticated());
-        $this->assertSame('session_cookies_here', $this->client->getSession());
+        $client = $this->createClientWithStub();
+        $client->setSession('session_cookies_here');
+        $this->assertTrue($client->isAuthenticated());
+        $this->assertSame('session_cookies_here', $client->getSession());
     }
 
     public function testIsSessionValidReturnsFalseWhenNoSession(): void
     {
-        $this->assertFalse($this->client->isSessionValid());
+        $this->assertFalse($this->createClientWithStub()->isSessionValid());
     }
 
     public function testIsSessionValidReturnsTrueOn200WithContent(): void
     {
-        $response = $this->createResponse(200, '<html><body>Library content</body></html>');
-        $response->method('getContent')->with(false)->willReturn('<html><body>Library content</body></html>');
+        $response = $this->createStub(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn(200);
+        $response->method('getContent')->willReturn('<html><body>Library content</body></html>');
 
-        $this->httpClient->expects($this->once())
+        /** @var HttpClientInterface&MockObject $httpClient */
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->client->setSession('valid_session');
-        $this->assertTrue($this->client->isSessionValid());
+        $client->setSession('valid_session');
+        $this->assertTrue($client->isSessionValid());
     }
 
     public function testIsSessionValidReturnsFalseOn302ToLogin(): void
     {
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('getStatusCode')->willReturn(302);
         $response->method('getHeaders')->willReturn([
             'location' => ['https://www.beatport.com/account/login'],
         ]);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->client->setSession('expired_session');
-        $this->assertFalse($this->client->isSessionValid());
+        $client->setSession('expired_session');
+        $this->assertFalse($client->isSessionValid());
     }
 
     public function testIsSessionValidReturnsFalseOnLoginPage(): void
     {
         $loginHtml = '<html><body><form action="/account/login"><button>Sign In</button></form></body></html>';
 
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('getStatusCode')->willReturn(200);
         $response->method('getContent')->willReturn($loginHtml);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->client->setSession('expired_session');
-        $this->assertFalse($this->client->isSessionValid());
+        $client->setSession('expired_session');
+        $this->assertFalse($client->isSessionValid());
     }
 
     public function testGetLibraryTracksReturnsEmptyWhenNotAuthenticated(): void
     {
-        $this->assertSame([], $this->client->getLibraryTracks());
+        $this->assertSame([], $this->createClientWithStub()->getLibraryTracks());
     }
 
     public function testGetLibraryTracksThrowsOnSessionExpired(): void
     {
-        $response = $this->createMock(ResponseInterface::class);
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('getStatusCode')->willReturn(302);
         $response->method('getHeaders')->willReturn([
             'location' => ['https://www.beatport.com/account/login'],
         ]);
         $response->method('getContent')->willReturn('');
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->client->setSession('expired_session');
+        $client->setSession('expired_session');
 
         $this->expectException(SessionExpiredException::class);
-        $this->client->getLibraryTracks();
+        $client->getLibraryTracks();
     }
 
     public function testGetLibraryTracksParsesTracks(): void
@@ -137,12 +148,13 @@ final class ScrapeClientTest extends TestCase
 
         $response = $this->createResponse(200, $html);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->client->setSession('valid_session');
-        $tracks = $this->client->getLibraryTracks();
+        $client->setSession('valid_session');
+        $tracks = $client->getLibraryTracks();
 
         $this->assertCount(1, $tracks);
         $this->assertSame(12345, $tracks[0]['id']);
@@ -154,12 +166,12 @@ final class ScrapeClientTest extends TestCase
     {
         $response = $this->createResponse(404);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $result = $this->client->getTrack(12345);
-        $this->assertNull($result);
+        $this->assertNull($client->getTrack(12345));
     }
 
     public function testGetTrackParsesDetailPage(): void
@@ -178,11 +190,12 @@ final class ScrapeClientTest extends TestCase
 
         $response = $this->createResponse(200, $html);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $result = $this->client->getTrack(999, 'test-track');
+        $result = $client->getTrack(999, 'test-track');
 
         $this->assertNotNull($result);
         $this->assertSame(999, $result['id']);
@@ -200,11 +213,12 @@ final class ScrapeClientTest extends TestCase
 
         $response = $this->createResponse(200, $html);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $tracks = $this->client->searchTracks('test query');
+        $tracks = $client->searchTracks('test query');
 
         $this->assertCount(1, $tracks);
         $this->assertSame(555, $tracks[0]['id']);
@@ -214,16 +228,17 @@ final class ScrapeClientTest extends TestCase
     {
         $response = $this->createResponse(500);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->assertSame([], $this->client->searchTracks('test'));
+        $this->assertSame([], $client->searchTracks('test'));
     }
 
     public function testGetLibraryPageCountReturnsZeroWhenNotAuthenticated(): void
     {
-        $this->assertSame(0, $this->client->getLibraryPageCount());
+        $this->assertSame(0, $this->createClientWithStub()->getLibraryPageCount());
     }
 
     public function testGetLibraryPageCountParsesPagination(): void
@@ -238,12 +253,13 @@ final class ScrapeClientTest extends TestCase
 
         $response = $this->createResponse(200, $html);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->client->setSession('valid_session');
-        $this->assertSame(5, $this->client->getLibraryPageCount());
+        $client->setSession('valid_session');
+        $this->assertSame(5, $client->getLibraryPageCount());
     }
 
     public function testGetLibraryPageCountRespectsMaxPages(): void
@@ -256,11 +272,12 @@ final class ScrapeClientTest extends TestCase
 
         $response = $this->createResponse(200, $html);
 
-        $this->httpClient->expects($this->once())
+        [$httpClient, $client] = $this->createClientWithMock();
+        $httpClient->expects($this->once())
             ->method('request')
             ->willReturn($response);
 
-        $this->client->setSession('valid_session');
-        $this->assertSame(10, $this->client->getLibraryPageCount(10));
+        $client->setSession('valid_session');
+        $this->assertSame(10, $client->getLibraryPageCount(10));
     }
 }
