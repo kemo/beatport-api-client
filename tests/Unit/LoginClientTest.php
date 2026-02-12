@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit;
+namespace Kemo\Beatport\Tests\Unit;
 
-use Beatport\AuthClient;
-use Beatport\Dto\LoginResult;
-use Beatport\LoginClient;
+use Kemo\Beatport\AuthClient;
+use Kemo\Beatport\Dto\LoginResult;
+use Kemo\Beatport\Exception\InvalidSessionException;
+use Kemo\Beatport\LoginClient;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -16,19 +17,19 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 final class LoginClientTest extends TestCase
 {
     private HttpClientInterface&MockObject $httpClient;
-    private AuthClient&MockObject $authClient;
+    private AuthClient $authClient;
     private LoginClient $loginClient;
 
     protected function setUp(): void
     {
         $this->httpClient = $this->createMock(HttpClientInterface::class);
-        $this->authClient = $this->createMock(AuthClient::class);
+        $this->authClient = $this->createStub(AuthClient::class);
         $this->loginClient = new LoginClient($this->httpClient, $this->authClient);
     }
 
     public function testLoginReturnsLoginResultWithSessionCookies(): void
     {
-        $loginResponse = $this->createMock(ResponseInterface::class);
+        $loginResponse = $this->createStub(ResponseInterface::class);
         $loginResponse->method('getHeaders')->willReturn([
             'set-cookie' => ['session_id=abc123; Path=/'],
         ]);
@@ -41,7 +42,6 @@ final class LoginClientTest extends TestCase
             ->method('request')
             ->willReturn($loginResponse);
 
-        // No client ID scraped - OAuth skipped
         $this->authClient->method('scrapeClientId')->willReturn(null);
 
         $result = $this->loginClient->login('testuser', 'password123');
@@ -54,7 +54,7 @@ final class LoginClientTest extends TestCase
 
     public function testLoginThrowsOnInvalidCredentials(): void
     {
-        $loginResponse = $this->createMock(ResponseInterface::class);
+        $loginResponse = $this->createStub(ResponseInterface::class);
         $loginResponse->method('getHeaders')->willReturn(['set-cookie' => []]);
         $loginResponse->method('getContent')->willReturn(json_encode([
             'detail' => 'Invalid credentials',
@@ -72,7 +72,7 @@ final class LoginClientTest extends TestCase
 
     public function testLoginThrowsOnNoCookies(): void
     {
-        $loginResponse = $this->createMock(ResponseInterface::class);
+        $loginResponse = $this->createStub(ResponseInterface::class);
         $loginResponse->method('getHeaders')->willReturn(['set-cookie' => []]);
         $loginResponse->method('getContent')->willReturn(json_encode([
             'username' => 'testuser',
@@ -82,15 +82,14 @@ final class LoginClientTest extends TestCase
             ->method('request')
             ->willReturn($loginResponse);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Login succeeded but no session cookies received');
+        $this->expectException(InvalidSessionException::class);
 
         $this->loginClient->login('testuser', 'password');
     }
 
     public function testLoginContinuesWhenOAuthFails(): void
     {
-        $loginResponse = $this->createMock(ResponseInterface::class);
+        $loginResponse = $this->createStub(ResponseInterface::class);
         $loginResponse->method('getHeaders')->willReturn([
             'set-cookie' => ['session_id=valid; Path=/'],
         ]);
@@ -113,7 +112,7 @@ final class LoginClientTest extends TestCase
 
     public function testLoginThrowsOnStringErrorResponse(): void
     {
-        $loginResponse = $this->createMock(ResponseInterface::class);
+        $loginResponse = $this->createStub(ResponseInterface::class);
         $loginResponse->method('getHeaders')->willReturn(['set-cookie' => []]);
         $loginResponse->method('getContent')->willReturn(json_encode('Account locked'));
 

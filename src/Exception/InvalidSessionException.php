@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Exception;
+namespace Kemo\Beatport\Exception;
 
 use RuntimeException;
 
-class InvalidSessionException extends RuntimeException
+final class InvalidSessionException extends RuntimeException
 {
     public function __construct()
     {

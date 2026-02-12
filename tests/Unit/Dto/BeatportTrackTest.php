@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit\Dto;
+namespace Kemo\Beatport\Tests\Unit\Dto;
 
-use Beatport\Dto\BeatportTrack;
+use Kemo\Beatport\Dto\BeatportTrack;
 use PHPUnit\Framework\TestCase;
 
 final class BeatportTrackTest extends TestCase
@@ -34,7 +34,7 @@ final class BeatportTrackTest extends TestCase
         $this->assertSame('Test Artist', $track->artistName);
         $this->assertSame('Test', $track->albumName); // "Test EP" -> "Test" (EP stripped)
         $this->assertSame(360000, $track->durationMs);
-        $this->assertSame('128', $track->bpm);
+        $this->assertSame(128, $track->bpm);
         $this->assertSame('A Minor', $track->musicalKey);
         $this->assertSame('Tech House', $track->genre);
         $this->assertSame('Test Label', $track->label);
@@ -104,7 +104,7 @@ final class BeatportTrackTest extends TestCase
         $this->assertSame('Extended Mix', $track->mix);
         $this->assertSame('Scraped Artist', $track->artistName);
         $this->assertSame(330000, $track->durationMs);
-        $this->assertSame('130', $track->bpm);
+        $this->assertSame(130, $track->bpm);
         $this->assertSame('B Minor', $track->musicalKey);
     }
 

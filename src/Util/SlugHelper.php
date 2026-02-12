@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Util;
+namespace Kemo\Beatport\Util;
 
 final class SlugHelper
 {

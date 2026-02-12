@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit\Dto;
+namespace Kemo\Beatport\Tests\Unit\Dto;
 
-use Beatport\Dto\TrackTitleParser;
+use Kemo\Beatport\Dto\TrackTitleParser;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

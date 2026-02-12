@@ -2,18 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Beatport;
+namespace Kemo\Beatport;
 
-use Beatport\Dto\LoginResult;
+use Kemo\Beatport\Dto\LoginResult;
+use Kemo\Beatport\Exception\InvalidSessionException;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
-class LoginClient
+final class LoginClient
 {
-    private const API_BASE_URL = 'https://api.beatport.com/v4';
-    private const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
     private ?string $sessionCookies = null;
 
     public function __construct(
@@ -27,16 +25,14 @@ class LoginClient
      */
     public function login(string $username, string $password, ?string $clientId = null): LoginResult
     {
-        // Step 1: Log into Beatport API to get session cookies
         $this->loginToWebsite($username, $password);
 
         if ($this->sessionCookies === null) {
-            throw new RuntimeException('Failed to obtain session cookies');
+            throw new InvalidSessionException();
         }
 
         $sessionCookies = $this->sessionCookies;
 
-        // Step 2: Try to get OAuth tokens if clientId is provided or can be scraped
         $accessToken = null;
         $refreshToken = null;
         $expiresIn = null;
@@ -50,17 +46,14 @@ class LoginClient
                 $refreshToken = $oauthResult['refresh_token'];
                 $expiresIn = $oauthResult['expires_in'];
 
-                // Try to get user profile
                 try {
                     $profile = $this->fetchUserProfile($accessToken);
                     $userId = $profile['id'] ?? null;
                     $beatportUserId = $userId !== null ? (string) $userId : null;
                 } catch (RuntimeException) {
-                    // Profile fetch failed, continue without user ID
                 }
             }
         } catch (RuntimeException) {
-            // OAuth flow failed - continue with scrape-only credentials
         }
 
         return new LoginResult(
@@ -75,9 +68,9 @@ class LoginClient
 
     private function loginToWebsite(string $username, string $password): void
     {
-        $response = $this->httpClient->request('POST', self::API_BASE_URL . '/auth/login/', [
+        $response = $this->httpClient->request('POST', Beatport::API_BASE_URL . '/auth/login/', [
             'headers' => [
-                'User-Agent' => self::USER_AGENT,
+                'User-Agent' => Beatport::USER_AGENT,
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
             ],
@@ -105,8 +98,8 @@ class LoginClient
             throw new RuntimeException($errorMessage);
         }
 
-        if ($this->sessionCookies === null || empty($this->sessionCookies)) {
-            throw new RuntimeException('Login succeeded but no session cookies received');
+        if ($this->sessionCookies === null || $this->sessionCookies === '') {
+            throw new InvalidSessionException();
         }
     }
 
@@ -120,12 +113,14 @@ class LoginClient
             throw new RuntimeException('Failed to obtain authorization code');
         }
 
-        return $this->exchangeCodeForTokens($clientId, $authCode);
+        $redirectUri = Beatport::API_BASE_URL . '/auth/o/post-message/';
+
+        return $this->authClient->exchangeCodeForTokens($clientId, $redirectUri, $authCode, '');
     }
 
     private function performOAuthAuthorization(string $clientId): ?string
     {
-        $redirectUri = self::API_BASE_URL . '/auth/o/post-message/';
+        $redirectUri = Beatport::API_BASE_URL . '/auth/o/post-message/';
 
         $params = [
             'response_type' => 'code',
@@ -133,11 +128,11 @@ class LoginClient
             'redirect_uri' => $redirectUri,
         ];
 
-        $authUrl = self::API_BASE_URL . '/auth/o/authorize/?' . http_build_query($params);
+        $authUrl = Beatport::API_BASE_URL . '/auth/o/authorize/?' . http_build_query($params);
 
         $response = $this->httpClient->request('GET', $authUrl, [
             'headers' => [
-                'User-Agent' => self::USER_AGENT,
+                'User-Agent' => Beatport::USER_AGENT,
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Cookie' => $this->sessionCookies ?? '',
             ],
@@ -148,14 +143,6 @@ class LoginClient
             $location = $response->getHeaders(false)['location'][0] ?? '';
 
             if (preg_match('/[?&]code=([^&]+)/', $location, $matches)) {
-                return urldecode($matches[1]);
-            }
-
-            $fullLocation = str_starts_with($location, 'http')
-                ? $location
-                : self::API_BASE_URL . $location;
-
-            if (preg_match('/[?&]code=([^&]+)/', $fullLocation, $matches)) {
                 return urldecode($matches[1]);
             }
         }
@@ -171,46 +158,11 @@ class LoginClient
     }
 
     /**
-     * @return array{access_token: string, refresh_token: string, expires_in: int}
-     */
-    private function exchangeCodeForTokens(string $clientId, string $code): array
-    {
-        $redirectUri = self::API_BASE_URL . '/auth/o/post-message/';
-
-        $tokenUrl = self::API_BASE_URL . '/auth/o/token/?' . http_build_query([
-            'code' => $code,
-            'grant_type' => 'authorization_code',
-            'redirect_uri' => $redirectUri,
-            'client_id' => $clientId,
-        ]);
-
-        $response = $this->httpClient->request('POST', $tokenUrl, [
-            'headers' => [
-                'User-Agent' => self::USER_AGENT,
-                'Accept' => 'application/json',
-                'Cookie' => $this->sessionCookies ?? '',
-            ],
-        ]);
-
-        $data = $response->toArray();
-
-        if (!isset($data['access_token'], $data['refresh_token'])) {
-            throw new RuntimeException('Invalid token response from Beatport');
-        }
-
-        return [
-            'access_token' => $data['access_token'],
-            'refresh_token' => $data['refresh_token'],
-            'expires_in' => $data['expires_in'] ?? 3600,
-        ];
-    }
-
-    /**
      * @return array<string, mixed>
      */
     private function fetchUserProfile(string $accessToken): array
     {
-        $response = $this->httpClient->request('GET', self::API_BASE_URL . '/my/account/', [
+        $response = $this->httpClient->request('GET', Beatport::API_BASE_URL . '/my/account/', [
             'headers' => [
                 'Authorization' => 'Bearer ' . $accessToken,
                 'Accept' => 'application/json',
@@ -249,6 +201,8 @@ class LoginClient
     }
 
     /**
+     * @param array<int, string> $setCookieHeaders
+     *
      * @return array<string, string>
      */
     private function extractCookies(array $setCookieHeaders): array

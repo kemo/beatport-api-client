@@ -1,8 +1,20 @@
 {
-    "name": "kemo/beatport-php-api",
+    "name": "kemo/beatport-api-client",
     "description": "Standalone Beatport API client for PHP",
     "type": "library",
-    "license": "proprietary",
+    "license": "MIT",
+    "keywords": ["beatport", "api", "client", "music", "dj", "scraper"],
+    "homepage": "https://github.com/kemo/beatport-api-client",
+    "authors": [
+        {
+            "name": "Kemal Delalic",
+            "homepage": "https://github.com/kemo"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/kemo/beatport-api-client/issues",
+        "source": "https://github.com/kemo/beatport-api-client"
+    },
     "require": {
         "php": ">=8.4",
         "symfony/http-client-contracts": "^3.5",
@@ -10,18 +22,32 @@
         "symfony/css-selector": "^7.2"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^12.5",
         "symfony/http-client": "^7.2"
     },
     "autoload": {
         "psr-4": {
-            "Beatport\\": "src/"
+            "Kemo\\Beatport\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Beatport\\Tests\\": "tests/"
+            "Kemo\\Beatport\\Tests\\": "tests/"
         }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test:coverage": "php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover coverage.xml --coverage-html coverage/",
+        "phpstan": "vendor/bin/phpstan analyse",
+        "cs:check": "vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "vendor/bin/php-cs-fixer fix",
+        "qa": [
+            "@cs:check",
+            "@phpstan",
+            "@test"
+        ]
     },
     "config": {
         "sort-packages": true

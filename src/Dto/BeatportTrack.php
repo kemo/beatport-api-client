@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Dto;
+namespace Kemo\Beatport\Dto;
 
 final readonly class BeatportTrack
 {
@@ -13,7 +13,7 @@ final readonly class BeatportTrack
         public ?string $artistName,
         public ?string $albumName,
         public ?int $durationMs,
-        public ?string $bpm,
+        public ?int $bpm,
         public ?string $musicalKey,
         public ?string $genre,
         public ?string $label,
@@ -27,45 +27,36 @@ final readonly class BeatportTrack
      */
     public static function fromApiResponse(array $data): self
     {
-        // Extract artist names
         $artistNames = array_map(
             fn ($a) => $a['name'] ?? '',
             $data['artists'] ?? [],
         );
 
-        // Get album/release name
         $albumName = $data['release']['name'] ?? null;
 
-        // Parse title and mix
         $rawTitle = $data['name'] ?? '';
         $mixName = $data['mix_name'] ?? null;
 
-        // If mix_name is provided by API, use it; otherwise parse from title
         if ($mixName !== null && $mixName !== '' && strtolower($mixName) !== 'original mix' && strtolower($mixName) !== 'original') {
             $title = $rawTitle;
             $mix = $mixName;
         } else {
             [$title, $mix] = TrackTitleParser::parse($rawTitle);
-            // If API provides mix_name and it's "Original Mix", override to null
             if ($mixName !== null && (strtolower($mixName) === 'original mix' || strtolower($mixName) === 'original')) {
                 $mix = null;
             }
         }
 
-        // Convert duration from seconds to milliseconds
         $durationMs = isset($data['length_ms']) ? (int) $data['length_ms'] : null;
         if ($durationMs === null && isset($data['length'])) {
-            // length is in "MM:SS" format
             $parts = explode(':', $data['length']);
             if (count($parts) === 2) {
                 $durationMs = ((int) $parts[0] * 60 + (int) $parts[1]) * 1000;
             }
         }
 
-        // Extract BPM
-        $bpm = isset($data['bpm']) ? (string) $data['bpm'] : null;
+        $bpm = isset($data['bpm']) ? (int) $data['bpm'] : null;
 
-        // Extract key
         $key = null;
         if (isset($data['key']['name'])) {
             $key = $data['key']['name'];
@@ -73,10 +64,7 @@ final readonly class BeatportTrack
             $key = is_string($data['key']) ? $data['key'] : null;
         }
 
-        // Extract genre
         $genre = $data['genre']['name'] ?? null;
-
-        // Extract label (from release.label.name)
         $label = $data['release']['label']['name'] ?? $data['label']['name'] ?? null;
 
         return new self(
@@ -113,20 +101,16 @@ final readonly class BeatportTrack
      */
     public static function fromScrapedData(array $data): self
     {
-        // Parse title and mix using TrackTitleParser
         [$title, $parsedMix] = TrackTitleParser::parse($data['title']);
 
-        // Use explicit mix if provided, otherwise use parsed
         $mix = $data['mix'] ?? $parsedMix;
 
-        // Normalize "Original Mix" to null
         if ($mix !== null && (strtolower($mix) === 'original mix' || strtolower($mix) === 'original')) {
             $mix = null;
         }
 
-        // Convert duration string "MM:SS" to milliseconds
         $durationMs = null;
-        if (isset($data['duration']) && $data['duration'] !== null) {
+        if (isset($data['duration'])) {
             $parts = explode(':', $data['duration']);
             if (count($parts) === 2) {
                 $durationMs = ((int) $parts[0] * 60 + (int) $parts[1]) * 1000;
@@ -138,9 +122,9 @@ final readonly class BeatportTrack
             title: $title,
             mix: $mix,
             artistName: $data['artist'] ?? null,
-            albumName: null, // Not always available from scraping
+            albumName: null,
             durationMs: $durationMs,
-            bpm: isset($data['bpm']) ? (string) $data['bpm'] : null,
+            bpm: $data['bpm'] ?? null,
             musicalKey: $data['key'] ?? null,
             genre: $data['genre'] ?? null,
             label: $data['label'] ?? null,

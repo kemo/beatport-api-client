@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit;
+namespace Kemo\Beatport\Tests\Unit;
 
-use Beatport\ApiClient;
+use Kemo\Beatport\ApiClient;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -13,17 +13,20 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 final class ApiClientTest extends TestCase
 {
     private HttpClientInterface&MockObject $httpClient;
-    private ApiClient $apiClient;
 
     protected function setUp(): void
     {
         $this->httpClient = $this->createMock(HttpClientInterface::class);
-        $this->apiClient = new ApiClient($this->httpClient);
     }
 
-    private function createJsonResponse(array $data): ResponseInterface&MockObject
+    private function createClient(string $token = 'test_token'): ApiClient
     {
-        $response = $this->createMock(ResponseInterface::class);
+        return new ApiClient($this->httpClient, $token);
+    }
+
+    private function createJsonResponse(array $data): ResponseInterface
+    {
+        $response = $this->createStub(ResponseInterface::class);
         $response->method('toArray')->willReturn($data);
 
         return $response;
@@ -43,7 +46,7 @@ final class ApiClientTest extends TestCase
             ->method('request')
             ->willReturn($response);
 
-        $result = $this->apiClient->getMyBeatportTracks('test_token');
+        $result = $this->createClient()->getMyBeatportTracks();
 
         $this->assertCount(2, $result);
     }
@@ -64,7 +67,7 @@ final class ApiClientTest extends TestCase
             ->method('request')
             ->willReturnOnConsecutiveCalls($page1, $page2);
 
-        $result = $this->apiClient->getMyBeatportTracks('test_token');
+        $result = $this->createClient()->getMyBeatportTracks();
 
         $this->assertCount(2, $result);
     }
@@ -73,14 +76,12 @@ final class ApiClientTest extends TestCase
     {
         $trackData = ['id' => 123, 'name' => 'Test Track', 'bpm' => 128];
 
-        $response = $this->createJsonResponse($trackData);
-
         $this->httpClient->expects($this->once())
             ->method('request')
             ->with('GET', 'https://api.beatport.com/v4/catalog/tracks/123/', $this->anything())
-            ->willReturn($response);
+            ->willReturn($this->createJsonResponse($trackData));
 
-        $result = $this->apiClient->getTrack('test_token', 123);
+        $result = $this->createClient()->getTrack(123);
 
         $this->assertSame(123, $result['id']);
     }
@@ -89,52 +90,44 @@ final class ApiClientTest extends TestCase
     {
         $accountData = ['id' => 'user123', 'username' => 'testuser'];
 
-        $response = $this->createJsonResponse($accountData);
-
         $this->httpClient->expects($this->once())
             ->method('request')
             ->with('GET', 'https://api.beatport.com/v4/my/account/', $this->anything())
-            ->willReturn($response);
+            ->willReturn($this->createJsonResponse($accountData));
 
-        $result = $this->apiClient->getAccount('test_token');
+        $result = $this->createClient()->getAccount();
 
         $this->assertSame('user123', $result['id']);
     }
 
     public function testSearchTracks(): void
     {
-        $response = $this->createJsonResponse([
-            'results' => [['id' => 1, 'name' => 'Found Track']],
-        ]);
-
         $this->httpClient->expects($this->once())
             ->method('request')
-            ->willReturn($response);
+            ->willReturn($this->createJsonResponse([
+                'results' => [['id' => 1, 'name' => 'Found Track']],
+            ]));
 
-        $result = $this->apiClient->searchTracks('test_token', 'test query');
+        $result = $this->createClient()->searchTracks('test query');
 
         $this->assertArrayHasKey('results', $result);
     }
 
     public function testGetTopTracks(): void
     {
-        $response = $this->createJsonResponse([
-            'results' => [['id' => 1, 'name' => 'Top Track']],
-        ]);
-
         $this->httpClient->expects($this->once())
             ->method('request')
-            ->willReturn($response);
+            ->willReturn($this->createJsonResponse([
+                'results' => [['id' => 1, 'name' => 'Top Track']],
+            ]));
 
-        $result = $this->apiClient->getTopTracks('test_token');
+        $result = $this->createClient()->getTopTracks();
 
         $this->assertArrayHasKey('results', $result);
     }
 
     public function testSendsAuthorizationHeader(): void
     {
-        $response = $this->createJsonResponse(['id' => 'user']);
-
         $this->httpClient->expects($this->once())
             ->method('request')
             ->with(
@@ -144,8 +137,8 @@ final class ApiClientTest extends TestCase
                     return ($options['headers']['Authorization'] ?? '') === 'Bearer my_token';
                 }),
             )
-            ->willReturn($response);
+            ->willReturn($this->createJsonResponse(['id' => 'user']));
 
-        $this->apiClient->getAccount('my_token');
+        $this->createClient('my_token')->getAccount();
     }
 }

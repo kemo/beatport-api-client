@@ -2,24 +2,25 @@
 
 declare(strict_types=1);
 
-namespace Beatport;
+namespace Kemo\Beatport;
 
-use Beatport\Exception\SessionExpiredException;
-use Beatport\Util\SlugHelper;
 use Exception;
+use Kemo\Beatport\Exception\SessionExpiredException;
+use Kemo\Beatport\Util\SlugHelper;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
-class ScrapeClient
+final class ScrapeClient
 {
-    private const BASE_URL = 'https://www.beatport.com';
-    private const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
     private ?string $sessionCookies = null;
 
+    /**
+     * @param int $requestDelayUs Delay between paginated requests in microseconds (default: 500ms)
+     */
     public function __construct(
         private readonly HttpClientInterface $httpClient,
+        private readonly int $requestDelayUs = 500_000,
     ) {
     }
 
@@ -40,7 +41,6 @@ class ScrapeClient
 
     /**
      * Validate if the current session is still valid by checking library page.
-     * Returns true if session is valid, false if expired/invalid.
      */
     public function isSessionValid(): bool
     {
@@ -53,22 +53,7 @@ class ScrapeClient
                 'max_redirects' => 0,
             ]);
 
-            // If we get redirected to login, session is expired
-            if ($response->getStatusCode() === 302) {
-                $location = $response->getHeaders(false)['location'][0] ?? '';
-                if (str_contains($location, 'login') || str_contains($location, 'account')) {
-                    return false;
-                }
-            }
-
-            // Check if the response contains login indicators
-            if ($response->getStatusCode() === 200) {
-                $content = $response->getContent(false);
-
-                return !$this->isLoginPage($content);
-            }
-
-            return $response->getStatusCode() === 200;
+            return !$this->isSessionExpiredResponse($response);
         } catch (Exception) {
             return false;
         }
@@ -123,8 +108,9 @@ class ScrapeClient
             $allTracks = array_merge($allTracks, $tracks);
             ++$page;
 
-            // Add small delay between requests to avoid rate limiting
-            usleep(500000); // 500ms
+            if ($this->requestDelayUs > 0) {
+                usleep($this->requestDelayUs);
+            }
         }
 
         return $allTracks;
@@ -192,13 +178,16 @@ class ScrapeClient
             return [];
         }
 
-        return $this->parseSearchResults($response->getContent());
+        return $this->parseLibraryTrackList($response->getContent());
     }
 
+    /**
+     * @param array<string, mixed> $options
+     */
     private function request(string $method, string $endpoint, array $options = []): ResponseInterface
     {
         $defaultHeaders = [
-            'User-Agent' => self::USER_AGENT,
+            'User-Agent' => Beatport::USER_AGENT,
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language' => 'en-US,en;q=0.9',
             'Accept-Encoding' => 'gzip, deflate, br',
@@ -214,10 +203,9 @@ class ScrapeClient
             $defaultHeaders['Cookie'] = $this->sessionCookies;
         }
 
-        // Merge headers properly - custom headers override defaults
         $options['headers'] = array_merge($defaultHeaders, $options['headers'] ?? []);
 
-        return $this->httpClient->request($method, self::BASE_URL . $endpoint, $options);
+        return $this->httpClient->request($method, Beatport::WEB_BASE_URL . $endpoint, $options);
     }
 
     private function isLoginPage(string $html): bool
@@ -238,9 +226,7 @@ class ScrapeClient
         }
 
         if ($response->getStatusCode() === 200) {
-            $content = $response->getContent(false);
-
-            return $this->isLoginPage($content);
+            return $this->isLoginPage($response->getContent(false));
         }
 
         return false;
@@ -317,7 +303,7 @@ class ScrapeClient
                 $seenIds[$id] = true;
 
                 $title = trim($node->text());
-                if (empty($title)) {
+                if ($title === '') {
                     return;
                 }
 
@@ -368,20 +354,17 @@ class ScrapeClient
         $crawler = new Crawler($html);
 
         try {
-            $title = null;
             $titleNode = $crawler->filter('h1')->first();
-            if ($titleNode->count() > 0) {
-                $title = trim($titleNode->text());
-            }
-
-            if ($title === null) {
+            if ($titleNode->count() === 0) {
                 return null;
             }
+
+            $title = trim($titleNode->text());
 
             $artists = [];
             $crawler->filter('a[href*="/artist/"]')->each(function (Crawler $node) use (&$artists) {
                 $text = trim($node->text());
-                if (!empty($text) && !in_array($text, $artists)) {
+                if ($text !== '' && !in_array($text, $artists)) {
                     $artists[] = $text;
                 }
             });
@@ -400,9 +383,9 @@ class ScrapeClient
             if (preg_match('/(\d{2,3})\s*BPM/i', $html, $bpmMatch)) {
                 $bpm = (int) $bpmMatch[1];
             }
-            $bpmNode = $crawler->filter('[class*="bpm"]')->first();
-            if ($bpmNode->count() > 0 && $bpm === null) {
-                if (preg_match('/(\d{2,3})/', $bpmNode->text(), $bpmMatch)) {
+            if ($bpm === null) {
+                $bpmNode = $crawler->filter('[class*="bpm"]')->first();
+                if ($bpmNode->count() > 0 && preg_match('/(\d{2,3})/', $bpmNode->text(), $bpmMatch)) {
                     $bpm = (int) $bpmMatch[1];
                 }
             }
@@ -433,8 +416,6 @@ class ScrapeClient
                 $previewUrl = $previewNode->attr('data-preview-url') ?? $previewNode->attr('src');
             }
 
-            $slug = SlugHelper::slugify($title);
-
             return [
                 'id' => $trackId,
                 'title' => $title,
@@ -446,20 +427,12 @@ class ScrapeClient
                 'label' => $label,
                 'duration' => $duration,
                 'releaseDate' => $releaseDate,
-                'slug' => $slug,
+                'slug' => SlugHelper::slugify($title),
                 'previewUrl' => $previewUrl,
             ];
         } catch (Exception) {
             return null;
         }
-    }
-
-    /**
-     * @return array<int, array{id: int, title: string, artist: ?string, mix: ?string, bpm: ?int, key: ?string, genre: ?string, label: ?string, duration: ?string, slug: string}>
-     */
-    private function parseSearchResults(string $html): array
-    {
-        return $this->parseLibraryTrackList($html);
     }
 
     private function extractArtistFromContext(Crawler $parent): ?string
@@ -471,7 +444,7 @@ class ScrapeClient
         $artists = [];
         $parent->filter('a[href*="/artist/"]')->each(function (Crawler $node) use (&$artists) {
             $text = trim($node->text());
-            if (!empty($text) && !in_array($text, $artists)) {
+            if ($text !== '' && !in_array($text, $artists)) {
                 $artists[] = $text;
             }
         });
@@ -486,11 +459,8 @@ class ScrapeClient
         }
 
         $genreNode = $parent->filter('a[href*="/genre/"]')->first();
-        if ($genreNode->count() > 0) {
-            return trim($genreNode->text());
-        }
 
-        return null;
+        return $genreNode->count() > 0 ? trim($genreNode->text()) : null;
     }
 
     private function extractLabelFromContext(Crawler $parent): ?string
@@ -500,11 +470,8 @@ class ScrapeClient
         }
 
         $labelNode = $parent->filter('a[href*="/label/"]')->first();
-        if ($labelNode->count() > 0) {
-            return trim($labelNode->text());
-        }
 
-        return null;
+        return $labelNode->count() > 0 ? trim($labelNode->text()) : null;
     }
 
     private function extractKey(string $html): ?string
