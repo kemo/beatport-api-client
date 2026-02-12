@@ -1,0 +1,29 @@
+{
+    "name": "kemo/beatport-php-api",
+    "description": "Standalone Beatport API client for PHP",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.4",
+        "symfony/http-client-contracts": "^3.5",
+        "symfony/dom-crawler": "^7.2",
+        "symfony/css-selector": "^7.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.5",
+        "symfony/http-client": "^7.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Beatport\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Beatport\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
