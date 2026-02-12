@@ -111,7 +111,7 @@ class AuthClient
         $html = $response->getContent();
 
         preg_match_all('/src="(\/static\/btprt\/[^"]+\.js)"/', $html, $matches);
-        $jsUrls = $matches[1] ?? [];
+        $jsUrls = $matches[1];
 
         foreach ($jsUrls as $jsPath) {
             $jsUrl = 'https://api.beatport.com' . $jsPath;

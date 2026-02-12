@@ -2,3 +2,7 @@
 /.phpunit.cache/
 /.idea/
 composer.lock
+.php-cs-fixer.cache
+/coverage/
+coverage.xml
+.DS_Store

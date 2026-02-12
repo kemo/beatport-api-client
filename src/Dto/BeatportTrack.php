@@ -110,7 +110,7 @@ final readonly class BeatportTrack
         }
 
         $durationMs = null;
-        if (isset($data['duration']) && $data['duration'] !== null) {
+        if (isset($data['duration'])) {
             $parts = explode(':', $data['duration']);
             if (count($parts) === 2) {
                 $durationMs = ((int) $parts[0] * 60 + (int) $parts[1]) * 1000;

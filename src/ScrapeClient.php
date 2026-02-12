@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Kemo\Beatport;
 
+use Exception;
 use Kemo\Beatport\Exception\SessionExpiredException;
 use Kemo\Beatport\Util\SlugHelper;
-use Exception;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
