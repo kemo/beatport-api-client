@@ -38,11 +38,11 @@
         }
     },
     "scripts": {
-        "test": "phpunit",
-        "test:coverage": "php -d pcov.enabled=1 phpunit --coverage-clover coverage.xml --coverage-html coverage/",
-        "phpstan": "phpstan analyse",
-        "cs:check": "php-cs-fixer fix --dry-run --diff",
-        "cs:fix": "php-cs-fixer fix",
+        "test": "vendor/bin/phpunit",
+        "test:coverage": "php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover coverage.xml --coverage-html coverage/",
+        "phpstan": "vendor/bin/phpstan analyse",
+        "cs:check": "vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "vendor/bin/php-cs-fixer fix",
         "qa": [
             "@cs:check",
             "@phpstan",
