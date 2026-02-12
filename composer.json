@@ -15,12 +15,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Beatport\\": "src/"
+            "Kemo\\Beatport\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Beatport\\Tests\\": "tests/"
+            "Kemo\\Beatport\\Tests\\": "tests/"
         }
     },
     "config": {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Dto;
+namespace Kemo\Beatport\Dto;
 
 final readonly class LoginResult
 {

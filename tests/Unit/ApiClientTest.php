@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit;
+namespace Kemo\Beatport\Tests\Unit;
 
-use Beatport\ApiClient;
+use Kemo\Beatport\ApiClient;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\HttpClient\HttpClientInterface;

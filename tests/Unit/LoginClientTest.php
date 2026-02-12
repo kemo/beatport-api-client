@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit;
+namespace Kemo\Beatport\Tests\Unit;
 
-use Beatport\AuthClient;
-use Beatport\Dto\LoginResult;
-use Beatport\LoginClient;
+use Kemo\Beatport\AuthClient;
+use Kemo\Beatport\Dto\LoginResult;
+use Kemo\Beatport\LoginClient;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;

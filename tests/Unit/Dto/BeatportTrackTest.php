@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit\Dto;
+namespace Kemo\Beatport\Tests\Unit\Dto;
 
-use Beatport\Dto\BeatportTrack;
+use Kemo\Beatport\Dto\BeatportTrack;
 use PHPUnit\Framework\TestCase;
 
 final class BeatportTrackTest extends TestCase

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Beatport;
+namespace Kemo\Beatport;
 
-use Beatport\Exception\SessionExpiredException;
-use Beatport\Util\SlugHelper;
+use Kemo\Beatport\Exception\SessionExpiredException;
+use Kemo\Beatport\Util\SlugHelper;
 use Exception;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Contracts\HttpClient\HttpClientInterface;

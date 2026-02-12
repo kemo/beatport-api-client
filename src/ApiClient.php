@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Beatport;
+namespace Kemo\Beatport;
 
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 

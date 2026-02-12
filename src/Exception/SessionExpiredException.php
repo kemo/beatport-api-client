@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Exception;
+namespace Kemo\Beatport\Exception;
 
 use RuntimeException;
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Beatport;
+namespace Kemo\Beatport;
 
-use Beatport\Dto\LoginResult;
+use Kemo\Beatport\Dto\LoginResult;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;

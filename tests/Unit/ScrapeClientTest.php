@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Beatport\Tests\Unit;
+namespace Kemo\Beatport\Tests\Unit;
 
-use Beatport\Exception\SessionExpiredException;
-use Beatport\ScrapeClient;
+use Kemo\Beatport\Exception\SessionExpiredException;
+use Kemo\Beatport\ScrapeClient;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
