@@ -9,7 +9,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class AuthClient
 {
-    private const AUTH_URL = Beatport::API_BASE_URL . '/auth/o/authorize';
+    private const AUTH_URL = Beatport::API_BASE_URL . '/auth/o/authorize/';
     private const TOKEN_URL = Beatport::API_BASE_URL . '/auth/o/token/';
     private const DOCS_URL = Beatport::API_BASE_URL . '/docs/';
     private const SCOPES = ['library'];

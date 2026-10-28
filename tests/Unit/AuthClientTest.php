@@ -25,6 +25,15 @@ final class AuthClientTest extends TestCase
         $this->assertStringContainsString('code_challenge_method=S256', $url);
     }
 
+    public function testGetAuthorizationUrlUsesTrailingSlash(): void
+    {
+        $authClient = new AuthClient($this->createStub(HttpClientInterface::class));
+
+        $url = $authClient->getAuthorizationUrl('test_client_id', 'https://example.com/callback', 'test_challenge');
+
+        $this->assertStringStartsWith('https://api.beatport.com/v4/auth/o/authorize/?', $url);
+    }
+
     public function testExchangeCodeForTokensSuccess(): void
     {
         $response = $this->createStub(ResponseInterface::class);
