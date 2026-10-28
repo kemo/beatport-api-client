@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `AuthClient::getAuthorizationUrl()` uses `/v4/auth/o/authorize/` with the trailing slash. The path without it returns 301.
+
+### Changed
+
+- README: document the client ID source, the accepted redirect URIs, the `library` scope caveat, and that the internal API host is private.
+
 ## [0.1.0] - 2025-01-01
 
 ### Added
