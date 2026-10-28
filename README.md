@@ -10,12 +10,14 @@ A standalone PHP client for the Beatport API. Provides three complementary clien
 
 ## Features
 
-- **OAuth API client** — Authenticated access to Beatport API v4 (library, tracks, search)
-- **Internal API client** — Public access to tracks, artists, labels, releases, genres, and charts
-- **Scrape client** — Session-based web scraping for library and track data
-- **Full auth flow** — OAuth PKCE authorization and username/password login
-- **DTOs** — Structured `BeatportTrack` and `LoginResult` objects
-- **Domain exceptions** — `AuthenticationException`, `InvalidSessionException`, `SessionExpiredException`
+- **OAuth API client**: authenticated access to Beatport API v4 (library, tracks, search)
+- **Internal API client**: tracks, artists, labels, releases, genres, and charts on Beatport's internal host (private network only, see below)
+- **Scrape client**: session-based web scraping for library and track data
+- **Full auth flow**: OAuth authorization and username/password login
+- **DTOs**: structured `BeatportTrack` and `LoginResult` objects
+- **Domain exceptions**: `AuthenticationException`, `InvalidSessionException`, `SessionExpiredException`
+
+API notes (endpoints, filters, auth details): https://gist.github.com/kemo/506ca56e35b9506ee5233bc4d773c1c8
 
 ## Installation
 
@@ -31,9 +33,11 @@ composer require symfony/http-client
 
 ## Usage
 
-### Internal API Client (No Auth Required)
+### Internal API Client
 
-The `InternalApiClient` accesses Beatport's internal API without authentication:
+The `InternalApiClient` calls `api-internal.beatportprod.com`, which Beatport's store uses for server-side rendering. It needs no token.
+
+> **Note:** The host resolves to a private address (`10.x.x.x`). Calls from the public internet fail. From outside Beatport's network, use `ApiClient` with a token. Some internal paths (`top-10-tracks`) return 404 on the public API, which uses `/top/{num}/` instead.
 
 ```php
 use Kemo\Beatport\InternalApiClient;
@@ -89,7 +93,23 @@ $topTracks = $client->getTopTracks(page: 1, perPage: 25);
 
 ### Authentication
 
-#### OAuth PKCE Flow
+#### Client ID and redirect URI
+
+Beatport has no self-serve developer program, so you cannot register an app or get a client secret. Use the client ID of Beatport's Developer Docs app:
+
+- `https://api.beatport.com/v4/docs/` loads `/static/btprt/<hash>.js` scripts. The first one sets `window.Config` with `API_CLIENT_ID: '...'`.
+- The file name changes on each deploy. `AuthClient::scrapeClientId()` finds the value at runtime.
+
+This client accepts only its registered redirect URIs. Any other value gives `invalid_request: Mismatching redirect URI.`
+
+- `https://api.beatport.com/v4/auth/o/post-message/`
+- `https://account.beatport.com/o/post-message/`
+
+The code arrives as the `code` query parameter on that URL. `LoginClient` reads it from the `Location` header and exchanges it without a client secret.
+
+Do not depend on the `library` scope that `getAuthorizationUrl()` sends. Beatport's OpenAPI spec does not list it. The docs app sends no scope and gets `app:docs user:dj`.
+
+#### OAuth Authorization Code Flow
 
 ```php
 use Kemo\Beatport\AuthClient;
@@ -97,25 +117,28 @@ use Symfony\Component\HttpClient\HttpClient;
 
 $auth = new AuthClient(HttpClient::create());
 
+$clientId = $auth->scrapeClientId();
+$redirectUri = 'https://api.beatport.com/v4/auth/o/post-message/';
+
 // Step 1: Get authorization URL
 $url = $auth->getAuthorizationUrl(
-    clientId: 'your-client-id',
-    redirectUri: 'https://your-app.com/callback',
+    clientId: $clientId,
+    redirectUri: $redirectUri,
     codeChallenge: $challenge,
 );
 
 // Step 2: Exchange code for tokens
 $tokens = $auth->exchangeCodeForTokens(
-    clientId: 'your-client-id',
-    redirectUri: 'https://your-app.com/callback',
+    clientId: $clientId,
+    redirectUri: $redirectUri,
     code: $authorizationCode,
     codeVerifier: $verifier,
 );
-// $tokens = ['access_token' => '...', 'refresh_token' => '...', 'expires_in' => 3600]
+// $tokens = ['access_token' => '...', 'refresh_token' => '...', 'expires_in' => 600]
 
-// Step 3: Refresh when expired
+// Step 3: Refresh when expired (docs app tokens expire after 10 minutes)
 $refreshed = $auth->refreshAccessToken(
-    clientId: 'your-client-id',
+    clientId: $clientId,
     refreshToken: $tokens['refresh_token'],
 );
 ```
@@ -213,7 +236,7 @@ src/
 ├── ApiClient.php              # OAuth API v4 client
 ├── InternalApiClient.php      # Internal API client (no auth)
 ├── ScrapeClient.php           # Web scraping client
-├── AuthClient.php             # OAuth PKCE flow
+├── AuthClient.php             # OAuth code flow, client ID scrape
 ├── LoginClient.php            # Username/password login
 ├── Beatport.php               # URL constants
 ├── Dto/
